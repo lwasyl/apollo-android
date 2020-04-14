@@ -1,0 +1,12 @@
+{
+  "data": {
+    "root": {
+      "__typename": "Root",
+      "foos": {
+        "__typename": "FoosList",
+        "foos": [],
+        "bars": []
+      }
+    }
+  }
+}

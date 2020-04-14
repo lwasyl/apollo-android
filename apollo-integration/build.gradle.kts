@@ -74,4 +74,8 @@ configure<ApolloExtension> {
     sourceFolder.set("com/apollographql/apollo/integration/subscription")
     rootPackageName.set("com.apollographql.apollo.integration.subscription")
   }
+  service("caching") {
+    sourceFolder.set("com/apollographql/apollo/integration/caching")
+    rootPackageName.set("com.apollographql.apollo.integration.caching")
+  }
 }

@@ -7,7 +7,6 @@ import com.apollographql.apollo.ApolloSubscriptionCall
 import com.apollographql.apollo.api.Response
 import com.apollographql.apollo.exception.ApolloException
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 
@@ -49,20 +48,23 @@ fun <T> ApolloCall<T>.toFlow() = callbackFlow {
  * @return a flow which emits [Responses<T>]
  */
 @ExperimentalCoroutinesApi
-fun <T> ApolloQueryWatcher<T>.toFlow() = callbackFlow {
+fun <T> ApolloQueryWatcher<T>.toFlow(id: String? = null) = callbackFlow {
   clone().enqueueAndWatch(
       object : ApolloCall.Callback<T>() {
         override fun onResponse(response: Response<T>) {
+          println("[$id] Got response $response")
           runCatching {
             offer(response)
           }
         }
 
         override fun onFailure(e: ApolloException) {
+          println("[$id] Got failure $e")
           close(e)
         }
 
         override fun onStatusEvent(event: ApolloCall.StatusEvent) {
+          println("[$id] Got event $event")
           if (event == ApolloCall.StatusEvent.COMPLETED) {
             close()
           }

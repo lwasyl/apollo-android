@@ -1,0 +1,22 @@
+query AllFoos {
+    root {
+        foosList {
+            foos {
+                id
+            }
+            bars {
+                id
+            }
+        }
+    }
+}
+
+query AllBars {
+    root {
+        barsList {
+            bars {
+                id
+            }
+        }
+    }
+}

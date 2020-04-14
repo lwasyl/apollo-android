@@ -13,14 +13,22 @@ import com.apollographql.apollo.coroutines.toJob
 import com.apollographql.apollo.exception.ApolloException
 import com.apollographql.apollo.exception.ApolloParseException
 import com.apollographql.apollo.fetcher.ApolloResponseFetchers
+import com.apollographql.apollo.integration.caching.AllBarsQuery
+import com.apollographql.apollo.integration.caching.AllFoosQuery
+import com.apollographql.apollo.integration.httpcache.AllPlanetsQuery
+import com.apollographql.apollo.integration.interceptor.AllFilmsQuery
 import com.apollographql.apollo.integration.normalizer.EpisodeHeroNameQuery
+import com.apollographql.apollo.integration.normalizer.EpisodeHeroWithDatesQuery
 import com.apollographql.apollo.integration.normalizer.HeroAndFriendsNamesWithIDsQuery
+import com.apollographql.apollo.integration.normalizer.ReviewsByEpisodeQuery
+import com.apollographql.apollo.integration.normalizer.StarshipByIdQuery
 import com.apollographql.apollo.integration.normalizer.type.Episode
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.retry
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import okhttp3.Dispatcher
@@ -30,6 +38,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
 
 class CoroutinesApolloTest {
   private lateinit var apolloClient: ApolloClient
@@ -148,6 +157,54 @@ class CoroutinesApolloTest {
 
     assertThat(response.data!!.hero()!!.name()).isEqualTo("R2-D2")
   }
+
+  @Test
+  @ExperimentalCoroutinesApi
+  fun watcherFlowCancellationCancelsWatcher(): Unit = runBlocking {
+    server.enqueue(mockResponse("FoosEmpty.json"))
+
+    val firstValueReceivedLatch = CountDownLatch(1)
+
+    val job = launch(Dispatchers.IO) {
+      apolloClient
+          .query(AllFoosQuery())
+          .responseFetcher(ApolloResponseFetchers.CACHE_FIRST)
+          .watcher()
+          .toFlow(id = "FoosCall")
+          .collect {
+            if (firstValueReceivedLatch.count > 0) {
+              firstValueReceivedLatch.countDown()
+            } else {
+              throw IllegalStateException("Shouldn't be reached")
+            }
+          }
+    }
+
+    println("Awaiting first flow")
+    firstValueReceivedLatch.await()
+
+    println("Cancelling first job")
+    job.cancel()
+
+    println("Clearing caches")
+    apolloClient.clearNormalizedCache()
+    apolloClient.clearHttpCache()
+
+    println("Enqueueing second response")
+    server.enqueue(mockResponse("BarsEmpty.json"))
+
+    println("Calling second query")
+    apolloClient
+        .query(AllBarsQuery())
+        .responseFetcher(ApolloResponseFetchers.NETWORK_ONLY)
+        .watcher()
+        .toFlow(id = "BarsCall")
+        .first()
+        .let { println("Received response: $it") }
+
+    println("Second query value received")
+    assertThat(server.requestCount).isEqualTo(2)
+  }.let { Unit }
 
   companion object {
 
